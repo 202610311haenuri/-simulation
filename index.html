@@ -1,714 +1,419 @@
-import React, { useState, useEffect, useRef } from 'react';
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>열의 이동 시뮬레이션</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+  </style>
+</head>
+<body class="bg-sky-50 text-gray-800 font-sans">
+  
+  <div id="root"></div>
 
-// --- 유틸리티 함수 ---
-const getColor = (temp) => {
-  // temp: 0 (Cold/Blue) ~ 100 (Hot/Red)
-  const r = Math.min(255, Math.max(0, temp * 2.55));
-  const b = Math.min(255, Math.max(0, 255 - temp * 2.55));
-  return `rgb(${r}, 0, ${b})`;
-};
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-// --- 공통 컴포넌트: 헤더 ---
-const PageHeader = ({ title, emoji, subtitle, onBack }) => (
-  <div className="mb-4">
-    <div className="flex gap-2 mb-4">
-      <button 
-        onClick={onBack}
-        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-full font-bold hover:bg-gray-300 transition shadow-sm flex items-center gap-2"
-      >
-        ⬅️ 메인 화면으로
-      </button>
-    </div>
-    <h2 className="text-2xl md:text-3xl font-extrabold text-gray-800 mb-2 flex items-center gap-2">
-      <span className="text-4xl">{emoji}</span> {title}
-    </h2>
-    <p className="text-gray-600 text-lg">{subtitle}</p>
-  </div>
-);
-
-// --- 0. 개념 사전 (Theory) 컴포넌트 ---
-const TheoryPanel = ({ onBack }) => {
-  return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-indigo-100">
-      <PageHeader 
-        title="열의 이동 개념 사전" 
-        emoji="📖" 
-        subtitle="열이 이동하는 3가지 방법을 글로 차근차근 읽고 이해해 보아요!" 
-        onBack={onBack} 
-      />
-      <div className="flex flex-col gap-6 mt-6">
-        <div className="bg-red-50 p-6 rounded-xl border-l-8 border-red-500 shadow-sm">
-          <h3 className="text-2xl font-bold text-red-700 mb-2">🏃‍♂️ 1. 전도 (Conduction)</h3>
-          <p className="text-lg text-gray-800 mb-2">
-            <strong>"단단한 고체에서 알갱이들이 부딪히며 열을 전달하는 방법"</strong>
-          </p>
-          <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
-            <li>물질을 이루는 입자(알갱이)들이 직접 이동하지 않고, <strong>제자리에서 진동</strong>하며 옆의 입자에게 열을 전달합니다. (마치 릴레이 달리기 같아요!)</li>
-            <li>주로 단단한 <strong>고체</strong>(철, 구리, 냄비 등)에서 일어납니다.</li>
-            <li>물질의 종류(금속, 나무, 플라스틱 등)에 따라 열이 전달되는 빠르기가 다릅니다.</li>
-            <li><strong>예시:</strong> 뜨거운 국에 담가 둔 숟가락 손잡이가 뜨거워진다.</li>
-          </ul>
-        </div>
-
-        <div className="bg-blue-50 p-6 rounded-xl border-l-8 border-blue-500 shadow-sm">
-          <h3 className="text-2xl font-bold text-blue-700 mb-2">🌀 2. 대류 (Convection)</h3>
-          <p className="text-lg text-gray-800 mb-2">
-            <strong>"액체나 기체가 직접 움직이면서 열을 통째로 옮기는 방법"</strong>
-          </p>
-          <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
-            <li>가열되어 온도가 높아진 물질은 <strong>가벼워져서 위로</strong> 올라가고, 위에 있던 차가운 물질은 <strong>무거워져서 아래로</strong> 내려옵니다.</li>
-            <li>알갱이들이 제자리에 있지 않고 <strong>직접 빙글빙글 이동</strong>하며 열을 전달합니다.</li>
-            <li>자유롭게 움직일 수 있는 <strong>액체(물)와 기체(공기)</strong>에서 일어납니다.</li>
-            <li><strong>예시:</strong> 에어컨을 위에 달면 방 전체가 시원해진다. 냄비 안의 물이 끓을 때 골고루 뜨거워진다.</li>
-          </ul>
-        </div>
-
-        <div className="bg-orange-50 p-6 rounded-xl border-l-8 border-orange-500 shadow-sm">
-          <h3 className="text-2xl font-bold text-orange-700 mb-2">☀️ 3. 복사 (Radiation)</h3>
-          <p className="text-lg text-gray-800 mb-2">
-            <strong>"도와주는 물질 없이, 열이 빛처럼 직접 날아가는 방법"</strong>
-          </p>
-          <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
-            <li>전도나 대류처럼 열을 전달해 줄 입자(알갱이)가 없어도 됩니다. <strong>아무것도 없는 진공 상태(우주)</strong>에서도 열이 이동할 수 있어요!</li>
-            <li>열 에너지가 빛이나 전자기파 형태로 <strong>사방으로 직진</strong>합니다.</li>
-            <li>중간에 장애물(그늘, 우산)이 있으면 열이 차단됩니다.</li>
-            <li><strong>예시:</strong> 태양의 열이 우주를 지나 지구를 따뜻하게 한다. 겨울철 난로 곁에 있으면 불을 향한 쪽만 따뜻하다.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- 1. 전도 (Conduction) 컴포넌트 ---
-const ConductionPanel = ({ onBack }) => {
-  const canvasRef = useRef(null);
-  const [material, setMaterial] = useState(0.5); 
-  const [isHeating, setIsHeating] = useState(false);
-  const animationRef = useRef(null);
-  const tempsRef = useRef(new Array(25).fill(0));
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const cols = 25; 
-    const rows = 6;
-    const radius = 12; 
-    const spacingX = canvas.width / cols;
-    const spacingY = canvas.height / (rows + 2);
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      if (isHeating) {
-        ctx.fillStyle = 'rgba(255, 100, 0, 0.8)';
-        ctx.beginPath();
-        ctx.arc(40, canvas.height / 2, 40 + Math.random() * 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
-        ctx.beginPath();
-        ctx.arc(30, canvas.height / 2, 20 + Math.random() * 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      let temps = tempsRef.current;
-      if (isHeating) {
-        temps[0] = 100; 
-      } else {
-        temps[0] = Math.max(0, temps[0] - 2); 
-      }
-
-      for (let i = 1; i < cols; i++) {
-        const diff = temps[i - 1] - temps[i];
-        temps[i] += diff * material * 0.1; 
-        temps[i] = Math.max(0, temps[i] - 0.2);
-      }
-
-      for (let i = 0; i < cols; i++) {
-        for (let j = 0; j < rows; j++) {
-          const temp = temps[i];
-          const vibration = (temp / 100) * 8; 
-          const dx = (Math.random() - 0.5) * vibration;
-          const dy = (Math.random() - 0.5) * vibration;
-
-          ctx.fillStyle = getColor(temp);
-          ctx.beginPath();
-          ctx.arc(i * spacingX + 60 + dx, (j + 1) * spacingY + dy, radius, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-      }
-
-      animationRef.current = requestAnimationFrame(draw);
+    // --- 유틸리티 함수 ---
+    const getColor = (temp) => {
+      const r = Math.min(255, Math.max(0, temp * 2.55));
+      const b = Math.min(255, Math.max(0, 255 - temp * 2.55));
+      return `rgb(${r}, 0, ${b})`;
     };
 
-    draw();
-    return () => cancelAnimationFrame(animationRef.current);
-  }, [material, isHeating]);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-red-100">
-      <PageHeader 
-        title="1. 전도 (Conduction) : 열의 릴레이 달리기!" 
-        emoji="🏃‍♂️" 
-        subtitle="고체 상태의 물체에서, 알갱이들이 옆 친구를 쿵쿵 치면서 열을 전달하는 방법이에요. 냄비 손잡이가 뜨거워지는 이유랍니다!" 
-        onBack={onBack} 
-      />
-      
-      <div className="w-full bg-slate-50 rounded-xl overflow-hidden mb-6 border-2 border-gray-200 flex justify-center p-4">
-        <canvas ref={canvasRef} width={800} height={300} className="w-full max-w-[800px] bg-white rounded-lg shadow-inner h-auto aspect-[8/3]" />
+    // --- 공통 컴포넌트: 헤더 ---
+    const PageHeader = ({ title, emoji, subtitle, onBack }) => (
+      <div className="mb-4">
+        <div className="flex gap-2 mb-4">
+          <button onClick={onBack} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-full font-bold hover:bg-gray-300 transition shadow-sm flex items-center gap-2">
+            ⬅️ 메인 화면으로
+          </button>
+        </div>
+        <h2 className="text-2xl md:text-3xl font-extrabold text-gray-800 mb-2 flex items-center gap-2">
+          <span className="text-4xl">{emoji}</span> {title}
+        </h2>
+        <p className="text-gray-600 text-lg">{subtitle}</p>
       </div>
+    );
 
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-4 bg-red-50 rounded-xl">
-        <button 
-          onMouseDown={() => setIsHeating(true)}
-          onMouseUp={() => setIsHeating(false)}
-          onMouseLeave={() => setIsHeating(false)}
-          onTouchStart={() => setIsHeating(true)}
-          onTouchEnd={() => setIsHeating(false)}
-          className="w-full md:w-auto px-8 py-4 text-xl bg-red-500 text-white rounded-xl font-black shadow-lg hover:bg-red-600 transition active:scale-95 flex items-center justify-center gap-2"
-        >
-          🔥 여기를 꾹 누르고 계세요!
-        </button>
-        
-        <div className="w-full md:w-auto flex flex-col gap-2">
-          <p className="font-bold text-gray-700 text-center md:text-left">막대기 재료를 바꿔볼까요?</p>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setMaterial(0.9)} className={`px-4 py-2 rounded-lg border-2 transition ${material > 0.8 ? 'bg-orange-200 border-orange-500 font-bold scale-105' : 'bg-white text-gray-600'}`}>🥉 구리 (매우 빠름)</button>
-            <button onClick={() => setMaterial(0.4)} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.4 ? 'bg-gray-300 border-gray-600 font-bold scale-105' : 'bg-white text-gray-600'}`}>🔩 철 (보통)</button>
-            <button onClick={() => setMaterial(0.1)} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.1 ? 'bg-blue-100 border-blue-400 font-bold scale-105' : 'bg-white text-gray-600'}`}>🥃 유리 (느림)</button>
-            <button onClick={() => { setMaterial(0.0); tempsRef.current.fill(0); }} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.0 ? 'bg-amber-100 border-amber-600 font-bold scale-105' : 'bg-white text-gray-600'}`}>🪵 나무 (안 통함)</button>
+    // --- 0. 개념 사전 (Theory) 컴포넌트 ---
+    const TheoryPanel = ({ onBack }) => {
+      return (
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-indigo-100">
+          <PageHeader title="열의 이동 개념 사전" emoji="📖" subtitle="열이 이동하는 3가지 방법을 글로 차근차근 읽고 이해해 보아요!" onBack={onBack} />
+          <div className="flex flex-col gap-6 mt-6">
+            <div className="bg-red-50 p-6 rounded-xl border-l-8 border-red-500 shadow-sm">
+              <h3 className="text-2xl font-bold text-red-700 mb-2">🏃‍♂️ 1. 전도 (Conduction)</h3>
+              <p className="text-lg text-gray-800 mb-2"><strong>"단단한 고체에서 알갱이들이 부딪히며 열을 전달하는 방법"</strong></p>
+              <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                <li>물질을 이루는 입자(알갱이)들이 직접 이동하지 않고, <strong>제자리에서 진동</strong>하며 옆의 입자에게 열을 전달합니다. (마치 릴레이 달리기 같아요!)</li>
+                <li>주로 단단한 <strong>고체</strong>(철, 구리, 냄비 등)에서 일어납니다.</li>
+                <li>물질의 종류에 따라 열이 전달되는 빠르기가 다릅니다.</li>
+                <li><strong>예시:</strong> 뜨거운 국에 담가 둔 숟가락 손잡이가 뜨거워진다.</li>
+              </ul>
+            </div>
+            <div className="bg-blue-50 p-6 rounded-xl border-l-8 border-blue-500 shadow-sm">
+              <h3 className="text-2xl font-bold text-blue-700 mb-2">🌀 2. 대류 (Convection)</h3>
+              <p className="text-lg text-gray-800 mb-2"><strong>"액체나 기체가 직접 움직이면서 열을 통째로 옮기는 방법"</strong></p>
+              <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                <li>가열되어 온도가 높아진 물질은 <strong>가벼워져서 위로</strong> 올라가고, 차가운 물질은 <strong>무거워져서 아래로</strong> 내려옵니다.</li>
+                <li>알갱이들이 제자리에 있지 않고 <strong>직접 빙글빙글 이동</strong>하며 열을 전달합니다.</li>
+                <li>자유롭게 움직일 수 있는 <strong>액체(물)와 기체(공기)</strong>에서 일어납니다.</li>
+                <li><strong>예시:</strong> 에어컨을 위에 달면 방 전체가 시원해진다. 주전자 안의 물이 끓을 때 골고루 뜨거워진다.</li>
+              </ul>
+            </div>
+            <div className="bg-orange-50 p-6 rounded-xl border-l-8 border-orange-500 shadow-sm">
+              <h3 className="text-2xl font-bold text-orange-700 mb-2">☀️ 3. 복사 (Radiation)</h3>
+              <p className="text-lg text-gray-800 mb-2"><strong>"도와주는 물질 없이, 열이 빛처럼 직접 날아가는 방법"</strong></p>
+              <ul className="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                <li>전도나 대류처럼 열을 전달해 줄 입자(알갱이)가 없어도 됩니다. <strong>아무것도 없는 진공 상태(우주)</strong>에서도 열이 이동할 수 있어요!</li>
+                <li>열 에너지가 빛이나 전자기파 형태로 <strong>사방으로 직진</strong>합니다.</li>
+                <li>중간에 장애물(그늘, 우산)이 있으면 열이 차단됩니다.</li>
+                <li><strong>예시:</strong> 태양의 열이 우주를 지나 지구를 따뜻하게 한다. 난로 곁에 있으면 불을 향한 쪽만 따뜻하다.</li>
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-};
-
-// --- 2. 대류 (Convection) 컴포넌트 ---
-const ConvectionPanel = ({ onBack }) => {
-  const canvasRef = useRef(null);
-  const [heatLevel, setHeatLevel] = useState(50);
-  const inkDropsRef = useRef([]);
-  const animationRef = useRef(null);
-  
-  const particlesRef = useRef(
-    Array.from({ length: 120 }).map((_, i) => ({
-      angle: Math.random() * Math.PI * 2,
-      radius: 40 + Math.random() * 80, 
-      loop: i % 2 === 0 ? 'left' : 'right',
-    }))
-  );
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const cxL = canvas.width * 0.35;
-    const cxR = canvas.width * 0.65;
-    const cy = canvas.height * 0.45;
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(canvas.width*0.1, 20);
-      ctx.lineTo(canvas.width*0.1, canvas.height - 30);
-      ctx.lineTo(canvas.width*0.9, canvas.height - 30);
-      ctx.lineTo(canvas.width*0.9, 20);
-      ctx.stroke();
-
-      ctx.fillStyle = 'rgba(186, 230, 253, 0.2)';
-      ctx.fillRect(canvas.width*0.1, 40, canvas.width*0.8, canvas.height - 70);
-
-      const fireIntensity = heatLevel / 100;
-      ctx.fillStyle = `rgba(255, ${100 - fireIntensity*100}, 0, ${0.4 + fireIntensity*0.6})`;
-      ctx.beginPath();
-      ctx.arc(canvas.width/2, canvas.height - 30, 50 + Math.random()*20*fireIntensity, Math.PI, 0);
-      ctx.fill();
-
-      const speedMultiplier = 0.005 + (heatLevel / 100) * 0.03; 
-
-      particlesRef.current.forEach(p => {
-        if (p.loop === 'left') p.angle -= speedMultiplier;
-        else p.angle += speedMultiplier;
-
-        const center_x = p.loop === 'left' ? cxL : cxR;
-        let x = center_x + Math.cos(p.angle) * p.radius;
-        let y = cy + Math.sin(p.angle) * p.radius * 1.5;
-
-        if ((p.loop === 'left' && Math.cos(p.angle) > 0) || (p.loop === 'right' && Math.cos(p.angle) < 0)) {
-           x = canvas.width / 2 + (Math.random() - 0.5) * 30; 
-        }
-
-        let temp = 0;
-        if (y > canvas.height * 0.6) temp = 50 + (heatLevel / 100) * 50;
-        else if (y < canvas.height * 0.3) temp = 10;
-        else {
-           const normalizedY = (y - canvas.height*0.3) / (canvas.height*0.3);
-           temp = normalizedY * (50 + (heatLevel/100)*50);
-        }
-
-        const pRadius = 8 + (temp / 100) * 6; 
-        ctx.fillStyle = getColor(temp);
-        ctx.beginPath();
-        ctx.arc(x, y, pRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.stroke();
-      });
-
-      const nextInks = [];
-      inkDropsRef.current.forEach(ink => {
-        if (ink.life > 0) {
-          if (ink.loop === 'left') ink.angle -= speedMultiplier;
-          else ink.angle += speedMultiplier;
-
-          const center_x = ink.loop === 'left' ? cxL : cxR;
-          let x = center_x + Math.cos(ink.angle) * ink.radius;
-          let y = cy + Math.sin(ink.angle) * ink.radius * 1.5;
-
-          ctx.fillStyle = `rgba(128, 0, 128, ${ink.life / 100})`; 
-          ctx.beginPath();
-          ctx.arc(x, y, 10, 0, Math.PI*2); 
-          ctx.fill();
-
-          nextInks.push({ ...ink, life: ink.life - 0.3 }); 
-        }
-      });
-      inkDropsRef.current = nextInks;
-
-      animationRef.current = requestAnimationFrame(draw);
+      );
     };
 
-    draw();
-    return () => cancelAnimationFrame(animationRef.current);
-  }, [heatLevel]);
+    // --- 1. 전도 (Conduction) 컴포넌트 ---
+    const ConductionPanel = ({ onBack }) => {
+      const canvasRef = useRef(null);
+      const [material, setMaterial] = useState(0.5); 
+      const [isHeating, setIsHeating] = useState(false);
+      const animationRef = useRef(null);
+      const tempsRef = useRef(new Array(25).fill(0));
 
-  const dropInk = () => {
-    const newInks = Array.from({ length: 20 }).map((_, i) => ({
-      angle: Math.PI / 2, 
-      radius: 20 + Math.random() * 80,
-      loop: Math.random() > 0.5 ? 'left' : 'right',
-      life: 100,
-    }));
-    inkDropsRef.current = [...inkDropsRef.current, ...newInks];
-  };
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const cols = 25; 
+        const rows = 6;
+        const radius = 12; 
+        const spacingX = canvas.width / cols;
+        const spacingY = canvas.height / (rows + 2);
 
-  return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-blue-100">
-      <PageHeader 
-        title="2. 대류 (Convection) : 빙글빙글 춤추는 열!" 
-        emoji="🌀" 
-        subtitle="물이나 공기 같은 유체에서, 가벼워진 뜨거운 것은 위로 둥둥 떠오르고 무거운 차가운 것은 아래로 가라앉으며 전체가 섞이는 방법이에요. 주전자의 물이 끓는 원리죠!" 
-        onBack={onBack} 
-      />
-      
-      <div className="w-full bg-slate-50 rounded-xl overflow-hidden mb-6 border-2 border-gray-200 flex justify-center p-4">
-        <canvas ref={canvasRef} width={800} height={400} className="w-full max-w-[800px] bg-white rounded-lg shadow-inner h-auto aspect-[2/1]" />
-      </div>
+        const draw = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          if (isHeating) {
+            ctx.fillStyle = 'rgba(255, 100, 0, 0.8)';
+            ctx.beginPath(); ctx.arc(40, canvas.height / 2, 40 + Math.random() * 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
+            ctx.beginPath(); ctx.arc(30, canvas.height / 2, 20 + Math.random() * 5, 0, Math.PI * 2); ctx.fill();
+          }
 
-      <div className="flex flex-col md:flex-row gap-6 p-4 bg-blue-50 rounded-xl items-center">
-        <div className="flex-1 w-full flex flex-col gap-2">
-          <label className="font-bold text-gray-700 flex items-center justify-between text-lg">
-            <span>가스레인지 불 세기 조절:</span>
-            <span className="text-red-500">{heatLevel}%</span>
-          </label>
-          <input 
-            type="range" min="0" max="100" 
-            value={heatLevel} onChange={(e) => setHeatLevel(Number(e.target.value))}
-            className="w-full h-4 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-red-500"
-          />
-        </div>
-        <button 
-          onClick={dropInk}
-          className="w-full md:w-auto px-8 py-4 text-xl bg-purple-500 text-white rounded-xl font-black shadow-lg hover:bg-purple-600 transition active:scale-95 whitespace-nowrap"
-        >
-          💧 보라색 잉크 떨어뜨리기
-        </button>
-      </div>
-    </div>
-  );
-};
+          let temps = tempsRef.current;
+          if (isHeating) temps[0] = 100; 
+          else temps[0] = Math.max(0, temps[0] - 2); 
 
-// --- 3. 복사 (Radiation) 컴포넌트 (이해하기 쉽게 개편됨) ---
-const RadiationPanel = ({ onBack }) => {
-  const canvasRef = useRef(null);
-  const [shieldActive, setShieldActive] = useState(false);
-  const animationRef = useRef(null);
-  const raysRef = useRef([]);
-  const earthTempRef = useRef(0);
+          for (let i = 1; i < cols; i++) {
+            const diff = temps[i - 1] - temps[i];
+            temps[i] += diff * material * 0.1; 
+            temps[i] = Math.max(0, temps[i] - 0.2);
+          }
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+          for (let i = 0; i < cols; i++) {
+            for (let j = 0; j < rows; j++) {
+              const temp = temps[i];
+              const vibration = (temp / 100) * 8; 
+              const dx = (Math.random() - 0.5) * vibration;
+              const dy = (Math.random() - 0.5) * vibration;
+              ctx.fillStyle = getColor(temp);
+              ctx.beginPath(); ctx.arc(i * spacingX + 60 + dx, (j + 1) * spacingY + dy, radius, 0, Math.PI * 2); ctx.fill();
+              ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 2; ctx.stroke();
+            }
+          }
+          animationRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => cancelAnimationFrame(animationRef.current);
+      }, [material, isHeating]);
 
-      // 배경 (우주 공간 강조)
-      ctx.fillStyle = '#0f172a'; // 진한 우주색
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // 별 그리기 (진공 우주 느낌)
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.beginPath();
-      ctx.arc(150, 50, 2, 0, Math.PI*2);
-      ctx.arc(350, 80, 1.5, 0, Math.PI*2);
-      ctx.arc(550, 30, 2.5, 0, Math.PI*2);
-      ctx.arc(700, 100, 1, 0, Math.PI*2);
-      ctx.fill();
-
-      // 우주 공간 텍스트 강조
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = 'bold 24px sans-serif';
-      ctx.fillText("✨ 텅 빈 우주 (공기 알갱이가 하나도 없는 진공!)", 200, 40);
-
-      // 왼쪽: 태양
-      const sunX = 0;
-      ctx.fillStyle = '#f59e0b'; // 노란 태양
-      ctx.beginPath();
-      ctx.arc(sunX, canvas.height/2, 120, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(252, 211, 77, 0.4)'; // 빛나는 효과
-      ctx.beginPath();
-      ctx.arc(sunX, canvas.height/2, 140 + Math.sin(Date.now()/200)*10, 0, Math.PI*2);
-      ctx.fill();
-      
-      ctx.fillStyle = 'black';
-      ctx.font = 'bold 20px sans-serif';
-      ctx.fillText("☀️ 태양", 20, canvas.height/2);
-
-      const shieldX = canvas.width / 2;
-      // 구름(장애물) 그리기
-      if (shieldActive) {
-        ctx.fillStyle = '#cbd5e1';
-        ctx.beginPath();
-        ctx.arc(shieldX, canvas.height/2, 50, 0, Math.PI*2);
-        ctx.arc(shieldX - 30, canvas.height/2 + 20, 40, 0, Math.PI*2);
-        ctx.arc(shieldX + 30, canvas.height/2 + 20, 40, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle = '#334155';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.fillText("☁️ 구름(막음)", shieldX - 45, canvas.height/2 + 10);
-      }
-
-      // 복사열(빛) 입자 생성
-      if (Math.random() < 0.6) {
-        raysRef.current.push({
-          x: 130,
-          startY: canvas.height/2 - 80 + Math.random()*160,
-          active: true
-        });
-      }
-
-      const earthX = canvas.width - 150;
-
-      // 복사열 선 긋기 (직진하는 전자기파)
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 4;
-      raysRef.current.forEach(ray => {
-        if (!ray.active) return;
-        
-        ctx.beginPath();
-        ctx.moveTo(ray.x, ray.startY);
-        ray.x += 12; // 매우 빠른 빛의 속도 느낌
-        ctx.lineTo(ray.x, ray.startY);
-        ctx.stroke();
-
-        // 장애물 충돌
-        if (shieldActive && ray.x >= shieldX - 50 && ray.x <= shieldX + 50 && ray.startY > canvas.height/2 - 60 && ray.startY < canvas.height/2 + 60) {
-          ray.active = false;
-        }
-        
-        // 지구 도달
-        if (ray.active && ray.x >= earthX - 40) {
-          ray.active = false;
-          earthTempRef.current = Math.min(100, earthTempRef.current + 1.5);
-        }
-      });
-
-      // 빗나간 광선 제거
-      raysRef.current = raysRef.current.filter(ray => ray.active && ray.x < canvas.width);
-
-      // 자연 냉각
-      earthTempRef.current = Math.max(0, earthTempRef.current - 0.4);
-
-      // 오른쪽: 지구
-      const currentTemp = earthTempRef.current;
-      
-      // 지구 색상 (차가우면 파란색, 뜨거워지면 빨간색으로 혼합)
-      ctx.fillStyle = getColor(currentTemp);
-      ctx.beginPath();
-      ctx.arc(earthX, canvas.height/2, 80, 0, Math.PI*2);
-      ctx.fill();
-      
-      // 대륙 모형 (단순화)
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.4)'; // 초록색 대륙
-      ctx.beginPath();
-      ctx.arc(earthX - 20, canvas.height/2 - 20, 30, 0, Math.PI*2);
-      ctx.arc(earthX + 30, canvas.height/2 + 10, 40, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 20px sans-serif';
-      ctx.fillText("🌍 지구", earthX - 30, canvas.height/2 - 100);
-
-      // 온도계
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(earthX + 100, canvas.height/2 - 60, 20, 120);
-      ctx.fillStyle = getColor(currentTemp);
-      const h = (currentTemp / 100) * 116;
-      ctx.fillRect(earthX + 102, canvas.height/2 + 58 - h, 16, h);
-      ctx.fillStyle = 'white';
-      ctx.font = '14px sans-serif';
-      ctx.fillText("온도", earthX + 95, canvas.height/2 - 70);
-
-      animationRef.current = requestAnimationFrame(draw);
-    };
-
-    draw();
-    return () => cancelAnimationFrame(animationRef.current);
-  }, [shieldActive]);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-orange-100">
-      <PageHeader 
-        title="3. 복사 (Radiation) : 우주를 건너는 열선 빔!" 
-        emoji="☀️" 
-        subtitle="공기나 물 같은 '도와주는 알갱이'가 하나도 없는 우주에서도, 태양열은 빛처럼 직접 지구로 날아와요! 이것이 바로 복사입니다." 
-        onBack={onBack} 
-      />
-      
-      <div className="w-full bg-slate-900 rounded-xl overflow-hidden mb-6 border-2 border-gray-700 flex justify-center p-4">
-        <canvas ref={canvasRef} width={800} height={300} className="w-full max-w-[800px] bg-slate-900 rounded-lg shadow-inner h-auto aspect-[8/3]" />
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-6 p-4 bg-orange-50 rounded-xl items-center justify-center">
-        <p className="text-lg font-bold text-gray-800 text-center">
-          태양빛(복사열)을 구름으로 가리면 어떻게 될까요?
-        </p>
-        <button 
-          onClick={() => setShieldActive(!shieldActive)}
-          className={`px-8 py-4 text-xl text-white rounded-xl font-black shadow-lg transition active:scale-95 whitespace-nowrap ${shieldActive ? 'bg-blue-500' : 'bg-slate-400 hover:bg-slate-500'}`}
-        >
-          {shieldActive ? '☀️ 구름 걷어내기 (지구 가열)' : '☁️ 중간에 구름 놓기 (열 차단)'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// --- 4. 문장형 종합 퀴즈 컴포넌트 (강화됨) ---
-const QuizPanel = ({ onBack }) => {
-  const quizData = [
-    {
-      q: "겨울철, 따뜻한 난로 곁에 앉아 있었더니 난로 쪽을 향한 앞모습만 후끈후끈 따뜻해졌습니다. 이것은 열이 어떻게 이동했기 때문일까요?",
-      options: ["전도", "대류", "복사"],
-      ans: "복사",
-      expl: "난로의 열이 중간에 있는 공기를 데우지 않고, 빛처럼 직접 내 몸으로 날아와 부딪혔기 때문에 '복사'입니다."
-    },
-    {
-      q: "여름철 에어컨을 방 위쪽에 달았더니, 찬 공기가 아래로 내려오면서 방 전체가 시원해졌습니다. 이 현상은 어떤 열의 이동일까요?",
-      options: ["전도", "대류", "복사"],
-      ans: "대류",
-      expl: "차가워진 무거운 공기가 아래로 내려오고, 뜨거운 공기가 위로 올라가면서 공기(기체)가 직접 순환했기 때문에 '대류'입니다."
-    },
-    {
-      q: "뜨거운 라면 국물 속에 쇠숟가락을 담가 두었더니, 국물 밖에 꺼내놓은 숟가락 손잡이까지 아주 뜨거워졌습니다. 어떤 방법일까요?",
-      options: ["전도", "대류", "복사"],
-      ans: "전도",
-      expl: "고체인 쇠숟가락 안에서 알갱이들이 서로 충돌하며 열을 손잡이 쪽으로 릴레이하듯 전달했기 때문에 '전도'입니다."
-    },
-    {
-      q: "아무런 공기도, 입자도 없는 텅 빈 진공 상태인 우주 공간을 지나서 태양의 뜨거운 열이 지구에 도착합니다. 어떻게 가능할까요?",
-      options: ["전도", "대류", "복사"],
-      ans: "복사",
-      expl: "도와줄 물질(매질)이 전혀 없어도 열이 전자기파 형태로 스스로 날아갈 수 있는 '복사' 현상입니다."
-    },
-    {
-      q: "주전자에 물을 넣고 끓일 때, 바닥만 가열해도 주전자 안의 물 전체가 골고루 뜨거워지며 보글보글 끓습니다. 이것은?",
-      options: ["전도", "대류", "복사"],
-      ans: "대류",
-      expl: "바닥에서 뜨거워진 가벼운 물이 위로 올라가고 윗부분의 찬물이 내려오며 빙글빙글 섞이는 '대류' 현상입니다."
-    }
-  ];
-
-  const [answers, setAnswers] = useState(Array(quizData.length).fill(''));
-  const [showResults, setShowResults] = useState(false);
-
-  const handleSelect = (index, value) => {
-    const newAnswers = [...answers];
-    newAnswers[index] = value;
-    setAnswers(newAnswers);
-    setShowResults(false); // 다시 선택하면 결과 숨김
-  };
-
-  const calculateScore = () => {
-    return answers.filter((ans, idx) => ans === quizData[idx].ans).length;
-  };
-
-  const handleSubmit = () => {
-    if (answers.includes('')) {
-      alert("모든 문제의 정답을 선택해주세요!"); // 이 부분은 브라우저 기본 알림 대신 UI 메시지로 대체하는 것이 좋으나, 간단함을 위해 유지하거나 아래처럼 UI로 변경 가능
-      return;
-    }
-    setShowResults(true);
-  };
-
-  return (
-    <div className="bg-amber-50 rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-amber-200 w-full">
-      <PageHeader 
-        title="4. 생활 속 열의 이동 퀴즈!" 
-        emoji="📝" 
-        subtitle="일상 생활에서 일어나는 현상들을 읽고, 전도, 대류, 복사 중 어떤 것인지 맞춰보세요!" 
-        onBack={onBack} 
-      />
-      
-      <div className="flex flex-col gap-6 mt-6">
-        {quizData.map((item, idx) => {
-          const isCorrect = answers[idx] === item.ans;
-          
-          return (
-            <div key={idx} className={`p-5 rounded-xl border-2 ${showResults ? (isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'bg-white border-gray-200 shadow-sm'}`}>
-              <p className="font-bold text-lg text-gray-800 mb-3"><span className="text-amber-600">Q{idx + 1}.</span> {item.q}</p>
-              
-              <div className="flex gap-3 mb-3">
-                {item.options.map(opt => (
-                  <button
-                    key={opt}
-                    onClick={() => handleSelect(idx, opt)}
-                    disabled={showResults}
-                    className={`flex-1 py-2 rounded-lg font-bold border-2 transition ${answers[idx] === opt ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'} ${showResults && 'cursor-not-allowed opacity-80'}`}
-                  >
-                    {opt}
-                  </button>
-                ))}
+      return (
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-red-100">
+          <PageHeader title="1. 전도 (Conduction) : 열의 릴레이 달리기!" emoji="🏃‍♂️" subtitle="고체 상태의 물체에서, 알갱이들이 옆 친구를 쿵쿵 치면서 열을 전달하는 방법이에요." onBack={onBack} />
+          <div className="w-full bg-slate-50 rounded-xl overflow-hidden mb-6 border-2 border-gray-200 flex justify-center p-4">
+            <canvas ref={canvasRef} width={800} height={300} className="w-full max-w-[800px] bg-white rounded-lg shadow-inner h-auto aspect-[8/3]" />
+          </div>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-4 bg-red-50 rounded-xl">
+            <button onMouseDown={() => setIsHeating(true)} onMouseUp={() => setIsHeating(false)} onMouseLeave={() => setIsHeating(false)} onTouchStart={() => setIsHeating(true)} onTouchEnd={() => setIsHeating(false)} className="w-full md:w-auto px-8 py-4 text-xl bg-red-500 text-white rounded-xl font-black shadow-lg hover:bg-red-600 transition active:scale-95 flex items-center justify-center gap-2">
+              🔥 여기를 꾹 누르고 계세요!
+            </button>
+            <div className="w-full md:w-auto flex flex-col gap-2">
+              <p className="font-bold text-gray-700 text-center md:text-left">막대기 재료를 바꿔볼까요?</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setMaterial(0.9)} className={`px-4 py-2 rounded-lg border-2 transition ${material > 0.8 ? 'bg-orange-200 border-orange-500 font-bold scale-105' : 'bg-white text-gray-600'}`}>🥉 구리 (빠름)</button>
+                <button onClick={() => setMaterial(0.4)} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.4 ? 'bg-gray-300 border-gray-600 font-bold scale-105' : 'bg-white text-gray-600'}`}>🔩 철 (보통)</button>
+                <button onClick={() => setMaterial(0.1)} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.1 ? 'bg-blue-100 border-blue-400 font-bold scale-105' : 'bg-white text-gray-600'}`}>🥃 유리 (느림)</button>
+                <button onClick={() => { setMaterial(0.0); tempsRef.current.fill(0); }} className={`px-4 py-2 rounded-lg border-2 transition ${material === 0.0 ? 'bg-amber-100 border-amber-600 font-bold scale-105' : 'bg-white text-gray-600'}`}>🪵 나무 (안 통함)</button>
               </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
 
-              {/* 결과 및 오답 풀이 영역 */}
-              {showResults && (
-                <div className="mt-4 p-3 rounded-lg bg-white/60">
-                  {isCorrect ? (
-                    <p className="text-green-700 font-bold">🎉 정답입니다! ({item.ans})</p>
-                  ) : (
-                    <div>
-                      <p className="text-red-600 font-bold mb-1">❌ 틀렸습니다. 정답은 [{item.ans}] 입니다.</p>
-                      <p className="text-gray-700 text-sm"><strong>💡 풀이:</strong> {item.expl}</p>
+    // --- 2. 대류 (Convection) 컴포넌트 ---
+    const ConvectionPanel = ({ onBack }) => {
+      const canvasRef = useRef(null);
+      const [heatLevel, setHeatLevel] = useState(50);
+      const inkDropsRef = useRef([]);
+      const animationRef = useRef(null);
+      const particlesRef = useRef(Array.from({ length: 120 }).map((_, i) => ({ angle: Math.random() * Math.PI * 2, radius: 40 + Math.random() * 80, loop: i % 2 === 0 ? 'left' : 'right' })));
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const cxL = canvas.width * 0.35, cxR = canvas.width * 0.65, cy = canvas.height * 0.45;
+
+        const draw = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 6; ctx.beginPath();
+          ctx.moveTo(canvas.width*0.1, 20); ctx.lineTo(canvas.width*0.1, canvas.height - 30); ctx.lineTo(canvas.width*0.9, canvas.height - 30); ctx.lineTo(canvas.width*0.9, 20); ctx.stroke();
+          ctx.fillStyle = 'rgba(186, 230, 253, 0.2)'; ctx.fillRect(canvas.width*0.1, 40, canvas.width*0.8, canvas.height - 70);
+
+          const fireIntensity = heatLevel / 100;
+          ctx.fillStyle = `rgba(255, ${100 - fireIntensity*100}, 0, ${0.4 + fireIntensity*0.6})`;
+          ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height - 30, 50 + Math.random()*20*fireIntensity, Math.PI, 0); ctx.fill();
+
+          const speedMultiplier = 0.005 + (heatLevel / 100) * 0.03; 
+
+          particlesRef.current.forEach(p => {
+            if (p.loop === 'left') p.angle -= speedMultiplier; else p.angle += speedMultiplier;
+            let x = (p.loop === 'left' ? cxL : cxR) + Math.cos(p.angle) * p.radius;
+            let y = cy + Math.sin(p.angle) * p.radius * 1.5;
+            if ((p.loop === 'left' && Math.cos(p.angle) > 0) || (p.loop === 'right' && Math.cos(p.angle) < 0)) x = canvas.width / 2 + (Math.random() - 0.5) * 30; 
+            
+            let temp = y > canvas.height * 0.6 ? 50 + (heatLevel / 100) * 50 : (y < canvas.height * 0.3 ? 10 : ((y - canvas.height*0.3) / (canvas.height*0.3)) * (50 + (heatLevel/100)*50));
+            const pRadius = 8 + (temp / 100) * 6; 
+            ctx.fillStyle = getColor(temp); ctx.beginPath(); ctx.arc(x, y, pRadius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.stroke();
+          });
+
+          const nextInks = [];
+          inkDropsRef.current.forEach(ink => {
+            if (ink.life > 0) {
+              if (ink.loop === 'left') ink.angle -= speedMultiplier; else ink.angle += speedMultiplier;
+              let x = (ink.loop === 'left' ? cxL : cxR) + Math.cos(ink.angle) * ink.radius;
+              let y = cy + Math.sin(ink.angle) * ink.radius * 1.5;
+              ctx.fillStyle = `rgba(128, 0, 128, ${ink.life / 100})`; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.fill();
+              nextInks.push({ ...ink, life: ink.life - 0.3 }); 
+            }
+          });
+          inkDropsRef.current = nextInks;
+          animationRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => cancelAnimationFrame(animationRef.current);
+      }, [heatLevel]);
+
+      return (
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-blue-100">
+          <PageHeader title="2. 대류 (Convection) : 빙글빙글 춤추는 열!" emoji="🌀" subtitle="물이나 공기에서 가벼워진 뜨거운 것은 위로, 차가운 것은 아래로 가라앉으며 섞이는 방법이에요." onBack={onBack} />
+          <div className="w-full bg-slate-50 rounded-xl overflow-hidden mb-6 border-2 border-gray-200 flex justify-center p-4">
+            <canvas ref={canvasRef} width={800} height={400} className="w-full max-w-[800px] bg-white rounded-lg shadow-inner h-auto aspect-[2/1]" />
+          </div>
+          <div className="flex flex-col md:flex-row gap-6 p-4 bg-blue-50 rounded-xl items-center">
+            <div className="flex-1 w-full flex flex-col gap-2">
+              <label className="font-bold text-gray-700 flex items-center justify-between text-lg"><span>가스레인지 불 세기 조절:</span><span className="text-red-500">{heatLevel}%</span></label>
+              <input type="range" min="0" max="100" value={heatLevel} onChange={(e) => setHeatLevel(Number(e.target.value))} className="w-full h-4 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-red-500" />
+            </div>
+            <button onClick={() => inkDropsRef.current = [...inkDropsRef.current, ...Array.from({ length: 20 }).map(() => ({ angle: Math.PI / 2, radius: 20 + Math.random() * 80, loop: Math.random() > 0.5 ? 'left' : 'right', life: 100 }))]} className="w-full md:w-auto px-8 py-4 text-xl bg-purple-500 text-white rounded-xl font-black shadow-lg hover:bg-purple-600 transition active:scale-95 whitespace-nowrap">💧 보라색 잉크 떨어뜨리기</button>
+          </div>
+        </div>
+      );
+    };
+
+    // --- 3. 복사 (Radiation) 컴포넌트 ---
+    const RadiationPanel = ({ onBack }) => {
+      const canvasRef = useRef(null);
+      const [shieldActive, setShieldActive] = useState(false);
+      const animationRef = useRef(null);
+      const raysRef = useRef([]);
+      const earthTempRef = useRef(0);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        const draw = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(150, 50, 2, 0, Math.PI*2); ctx.arc(350, 80, 1.5, 0, Math.PI*2); ctx.arc(550, 30, 2.5, 0, Math.PI*2); ctx.arc(700, 100, 1, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = 'bold 24px sans-serif'; ctx.fillText("✨ 텅 빈 우주 (공기 알갱이가 하나도 없는 진공!)", 200, 40);
+
+          const sunX = 0;
+          ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(sunX, canvas.height/2, 120, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(252, 211, 77, 0.4)'; ctx.beginPath(); ctx.arc(sunX, canvas.height/2, 140 + Math.sin(Date.now()/200)*10, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'black'; ctx.font = 'bold 20px sans-serif'; ctx.fillText("☀️ 태양", 20, canvas.height/2);
+
+          const shieldX = canvas.width / 2;
+          if (shieldActive) {
+            ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(shieldX, canvas.height/2, 50, 0, Math.PI*2); ctx.arc(shieldX - 30, canvas.height/2 + 20, 40, 0, Math.PI*2); ctx.arc(shieldX + 30, canvas.height/2 + 20, 40, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#334155'; ctx.font = 'bold 16px sans-serif'; ctx.fillText("☁️ 구름(막음)", shieldX - 45, canvas.height/2 + 10);
+          }
+
+          if (Math.random() < 0.6) raysRef.current.push({ x: 130, startY: canvas.height/2 - 80 + Math.random()*160, active: true });
+
+          const earthX = canvas.width - 150;
+          ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 4;
+          raysRef.current.forEach(ray => {
+            if (!ray.active) return;
+            ctx.beginPath(); ctx.moveTo(ray.x, ray.startY); ray.x += 12; ctx.lineTo(ray.x, ray.startY); ctx.stroke();
+            if (shieldActive && ray.x >= shieldX - 50 && ray.x <= shieldX + 50 && ray.startY > canvas.height/2 - 60 && ray.startY < canvas.height/2 + 60) ray.active = false;
+            if (ray.active && ray.x >= earthX - 40) { ray.active = false; earthTempRef.current = Math.min(100, earthTempRef.current + 1.5); }
+          });
+          raysRef.current = raysRef.current.filter(ray => ray.active && ray.x < canvas.width);
+          earthTempRef.current = Math.max(0, earthTempRef.current - 0.4);
+
+          const currentTemp = earthTempRef.current;
+          ctx.fillStyle = getColor(currentTemp); ctx.beginPath(); ctx.arc(earthX, canvas.height/2, 80, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(34, 197, 94, 0.4)'; ctx.beginPath(); ctx.arc(earthX - 20, canvas.height/2 - 20, 30, 0, Math.PI*2); ctx.arc(earthX + 30, canvas.height/2 + 10, 40, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'white'; ctx.font = 'bold 20px sans-serif'; ctx.fillText("🌍 지구", earthX - 30, canvas.height/2 - 100);
+
+          ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(earthX + 100, canvas.height/2 - 60, 20, 120);
+          ctx.fillStyle = getColor(currentTemp); const h = (currentTemp / 100) * 116; ctx.fillRect(earthX + 102, canvas.height/2 + 58 - h, 16, h);
+          ctx.fillStyle = 'white'; ctx.font = '14px sans-serif'; ctx.fillText("온도", earthX + 95, canvas.height/2 - 70);
+
+          animationRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => cancelAnimationFrame(animationRef.current);
+      }, [shieldActive]);
+
+      return (
+        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-orange-100">
+          <PageHeader title="3. 복사 (Radiation) : 우주를 건너는 열선 빔!" emoji="☀️" subtitle="공기나 물 같은 알갱이가 전혀 없는 진공 우주에서도 열이 빛처럼 직접 날아와요!" onBack={onBack} />
+          <div className="w-full bg-slate-900 rounded-xl overflow-hidden mb-6 border-2 border-gray-700 flex justify-center p-4">
+            <canvas ref={canvasRef} width={800} height={300} className="w-full max-w-[800px] bg-slate-900 rounded-lg shadow-inner h-auto aspect-[8/3]" />
+          </div>
+          <div className="flex flex-col md:flex-row gap-6 p-4 bg-orange-50 rounded-xl items-center justify-center">
+            <p className="text-lg font-bold text-gray-800 text-center">태양빛을 구름으로 가리면 어떻게 될까요?</p>
+            <button onClick={() => setShieldActive(!shieldActive)} className={`px-8 py-4 text-xl text-white rounded-xl font-black shadow-lg transition active:scale-95 whitespace-nowrap ${shieldActive ? 'bg-blue-500' : 'bg-slate-400 hover:bg-slate-500'}`}>
+              {shieldActive ? '☀️ 구름 걷어내기 (지구 가열)' : '☁️ 중간에 구름 놓기 (열 차단)'}
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // --- 4. 퀴즈 컴포넌트 ---
+    const QuizPanel = ({ onBack }) => {
+      const quizData = [
+        { q: "겨울철, 난로를 향한 앞모습만 따뜻해졌습니다. 이것은 열이 어떻게 이동했기 때문일까요?", options: ["전도", "대류", "복사"], ans: "복사", expl: "난로의 열이 공기를 거치지 않고 빛처럼 직접 날아왔기 때문입니다." },
+        { q: "에어컨을 방 위쪽에 달았더니, 방 전체가 시원해졌습니다. 이 현상은 어떤 열의 이동일까요?", options: ["전도", "대류", "복사"], ans: "대류", expl: "무거운 찬 공기가 아래로, 더운 공기가 위로 직접 이동하며 순환하기 때문입니다." },
+        { q: "뜨거운 국물 속에 담가 둔 쇠숟가락의 손잡이까지 뜨거워졌습니다. 어떤 방법일까요?", options: ["전도", "대류", "복사"], ans: "전도", expl: "고체인 쇠숟가락 안에서 알갱이들이 서로 충돌하며 열을 릴레이했기 때문입니다." },
+        { q: "텅 빈 우주 공간을 지나 태양의 뜨거운 열이 지구에 도착합니다. 어떻게 가능할까요?", options: ["전도", "대류", "복사"], ans: "복사", expl: "도와줄 물질이 전혀 없어도 열이 빛의 형태로 스스로 날아가는 현상입니다." },
+        { q: "주전자 바닥만 가열해도 안의 물 전체가 골고루 뜨거워지며 끓습니다. 이것은?", options: ["전도", "대류", "복사"], ans: "대류", expl: "뜨거워진 가벼운 물이 위로 올라가고 찬물이 내려오며 빙글빙글 섞이기 때문입니다." }
+      ];
+
+      const [answers, setAnswers] = useState(Array(5).fill(''));
+      const [showResults, setShowResults] = useState(false);
+
+      const handleSelect = (index, value) => { const newAnswers = [...answers]; newAnswers[index] = value; setAnswers(newAnswers); setShowResults(false); };
+      const calculateScore = () => answers.filter((ans, idx) => ans === quizData[idx].ans).length;
+      const handleSubmit = () => { if (answers.includes('')) alert("모든 문제의 정답을 선택해주세요!"); else setShowResults(true); };
+
+      return (
+        <div className="bg-amber-50 rounded-2xl shadow-xl p-6 md:p-8 animate-fade-in border-4 border-amber-200 w-full">
+          <PageHeader title="4. 생활 속 열의 이동 퀴즈!" emoji="📝" subtitle="전도, 대류, 복사 중 어떤 것인지 맞춰보세요!" onBack={onBack} />
+          <div className="flex flex-col gap-6 mt-6">
+            {quizData.map((item, idx) => {
+              const isCorrect = answers[idx] === item.ans;
+              return (
+                <div key={idx} className={`p-5 rounded-xl border-2 ${showResults ? (isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300') : 'bg-white border-gray-200 shadow-sm'}`}>
+                  <p className="font-bold text-lg text-gray-800 mb-3"><span className="text-amber-600">Q{idx + 1}.</span> {item.q}</p>
+                  <div className="flex gap-3 mb-3">
+                    {item.options.map(opt => (
+                      <button key={opt} onClick={() => handleSelect(idx, opt)} disabled={showResults} className={`flex-1 py-2 rounded-lg font-bold border-2 transition ${answers[idx] === opt ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  {showResults && (
+                    <div className="mt-4 p-3 rounded-lg bg-white/60">
+                      {isCorrect ? <p className="text-green-700 font-bold">🎉 정답입니다! ({item.ans})</p> : <div><p className="text-red-600 font-bold mb-1">❌ 틀렸습니다. 정답은 [{item.ans}] 입니다.</p><p className="text-gray-700 text-sm"><strong>💡 풀이:</strong> {item.expl}</p></div>}
                     </div>
                   )}
                 </div>
-              )}
+              );
+            })}
+            <div className="sticky bottom-4 z-10 flex flex-col items-center gap-4 bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-gray-200 mt-4">
+              {!showResults ? <button onClick={handleSubmit} className={`w-full max-w-md py-4 text-xl text-white rounded-xl font-black shadow-lg transition active:scale-95 ${answers.includes('') ? 'bg-gray-400' : 'bg-amber-500 hover:bg-amber-600'}`}>{answers.includes('') ? '문제를 다 풀어주세요' : '📝 채점하기'}</button> : <div className="text-center w-full"><h3 className="text-2xl font-bold text-gray-800 mb-2">총 5문제 중 <span className="text-amber-600 text-3xl">{calculateScore()}</span>문제 정답!</h3><button onClick={() => {setAnswers(Array(5).fill('')); setShowResults(false);}} className="mt-4 px-6 py-2 bg-gray-200 text-gray-800 rounded-full font-bold hover:bg-gray-300">다시 풀기 🔄</button></div>}
             </div>
-          );
-        })}
+          </div>
+        </div>
+      );
+    };
 
-        <div className="sticky bottom-4 z-10 flex flex-col items-center gap-4 bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-gray-200 mt-4">
-          {!showResults ? (
-            <button 
-              onClick={handleSubmit}
-              className={`w-full max-w-md py-4 text-xl text-white rounded-xl font-black shadow-lg transition active:scale-95 ${answers.includes('') ? 'bg-gray-400' : 'bg-amber-500 hover:bg-amber-600'}`}
-            >
-              {answers.includes('') ? '모든 문제를 풀어주세요' : '📝 채점하기'}
-            </button>
-          ) : (
-            <div className="text-center w-full">
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">
-                총 {quizData.length}문제 중 <span className="text-amber-600 text-3xl">{calculateScore()}</span>문제 정답!
-              </h3>
-              {calculateScore() === quizData.length && <p className="text-green-600 font-bold text-lg animate-bounce mt-2">완벽합니다! 열의 이동 마스터가 되셨군요! 🏆</p>}
-              <button onClick={() => {setAnswers(Array(quizData.length).fill('')); setShowResults(false);}} className="mt-4 px-6 py-2 bg-gray-200 text-gray-800 rounded-full font-bold hover:bg-gray-300">다시 풀기 🔄</button>
+    // --- 메인 홈 화면 ---
+    const HomePanel = ({ onSelect }) => (
+      <div className="animate-fade-in text-center flex flex-col items-center justify-center min-h-[80vh]">
+        <div className="mb-8">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-blue-900 mb-4 drop-shadow-sm">🔥 열은 어떻게 여행할까요? 🧊</h1>
+          <p className="text-xl text-gray-600 font-medium max-w-2xl mx-auto mb-6">아래 카드를 눌러서 열의 이동 시뮬레이션을 직접 체험해 보세요!</p>
+          <button onClick={() => onSelect('theory')} className="px-8 py-3 bg-indigo-600 text-white text-lg font-bold rounded-full shadow-lg hover:bg-indigo-700 transition hover:scale-105 animate-pulse">📖 열의 이동 3가지, 글로 먼저 정리하기!</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+          <button onClick={() => onSelect('conduction')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-red-400 hover:-translate-y-2 transition-transform">
+            <span className="text-6xl mb-4">🏃‍♂️</span><h3 className="text-2xl font-bold text-gray-800 mb-2">1. 전도 (Conduction)</h3><p className="text-gray-500 font-medium">단단한 물체 안에서 릴레이 달리기!</p>
+          </button>
+          <button onClick={() => onSelect('convection')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-blue-400 hover:-translate-y-2 transition-transform">
+            <span className="text-6xl mb-4">🌀</span><h3 className="text-2xl font-bold text-gray-800 mb-2">2. 대류 (Convection)</h3><p className="text-gray-500 font-medium">물과 공기가 빙글빙글 직접 이동하기</p>
+          </button>
+          <button onClick={() => onSelect('radiation')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-orange-400 hover:-translate-y-2 transition-transform">
+            <span className="text-6xl mb-4">☀️</span><h3 className="text-2xl font-bold text-gray-800 mb-2">3. 복사 (Radiation)</h3><p className="text-gray-500 font-medium">우주를 통과하는 순간이동 빔!</p>
+          </button>
+          <button onClick={() => onSelect('quiz')} className="flex flex-col items-center bg-amber-100 p-8 rounded-3xl shadow-lg border-b-8 border-amber-500 hover:-translate-y-2 transition-transform">
+            <span className="text-6xl mb-4">📝</span><h3 className="text-2xl font-bold text-amber-900 mb-2">4. 생활 속 퀴즈 풀기</h3><p className="text-amber-700 font-medium">배운 내용을 5가지 문장 퀴즈로 테스트!</p>
+          </button>
+        </div>
+      </div>
+    );
+
+    // --- 최상위 App ---
+    const App = () => {
+      const [currentView, setCurrentView] = useState('home');
+      const goHome = () => { window.scrollTo(0, 0); setCurrentView('home'); };
+
+      return (
+        <div className="min-h-screen p-4 md:p-8 flex flex-col items-center pb-20">
+          {['conduction', 'convection', 'radiation'].includes(currentView) && (
+            <div className="fixed top-4 right-4 flex items-center justify-center gap-2 text-xs md:text-sm font-medium bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow border border-gray-200 z-50">
+              <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-1 animate-pulse"></span> 붉은색: 뜨거움!</span>
+              <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span> 푸른색: 차가움!</span>
             </div>
           )}
+          {['conduction', 'convection', 'radiation'].includes(currentView) && (
+            <div className="fixed top-4 left-4 z-50 hidden md:block">
+               <button onClick={() => setCurrentView('theory')} className="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm font-bold rounded-full shadow hover:bg-indigo-200 transition border border-indigo-300">📖 설명 다시보기</button>
+            </div>
+          )}
+          <div className="w-full max-w-6xl">
+            {currentView === 'home' && <HomePanel onSelect={setCurrentView} />}
+            {currentView === 'theory' && <TheoryPanel onBack={goHome} />}
+            {currentView === 'conduction' && <ConductionPanel onBack={goHome} />}
+            {currentView === 'convection' && <ConvectionPanel onBack={goHome} />}
+            {currentView === 'radiation' && <RadiationPanel onBack={goHome} />}
+            {currentView === 'quiz' && <QuizPanel onBack={goHome} />}
+          </div>
         </div>
-      </div>
-    </div>
-  );
-};
+      );
+    };
 
-// --- 메인 홈(메뉴) 화면 컴포넌트 ---
-const HomePanel = ({ onSelect }) => (
-  <div className="animate-fade-in text-center flex flex-col items-center justify-center min-h-[80vh]">
-    <div className="mb-8">
-      <h1 className="text-4xl md:text-5xl font-extrabold text-blue-900 mb-4 drop-shadow-sm">🔥 열은 어떻게 여행할까요? 🧊</h1>
-      <p className="text-xl text-gray-600 font-medium max-w-2xl mx-auto mb-6">
-        우리 눈에는 보이지 않지만, 열은 3가지 멋진 방법으로 이동한답니다. 아래 카드를 눌러서 열의 이동 시뮬레이션을 직접 체험해 보세요!
-      </p>
-      
-      {/* 개념 사전 보기 버튼 추가 */}
-      <button onClick={() => onSelect('theory')} className="px-8 py-3 bg-indigo-600 text-white text-lg font-bold rounded-full shadow-lg hover:bg-indigo-700 transition hover:scale-105 animate-pulse">
-        📖 열의 이동 3가지, 글로 먼저 정리하기!
-      </button>
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
-      <button onClick={() => onSelect('conduction')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-red-400 hover:-translate-y-2 transition-transform duration-300 group">
-        <span className="text-6xl mb-4 group-hover:scale-110 transition-transform">🏃‍♂️</span>
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">1. 전도 (Conduction)</h3>
-        <p className="text-gray-500 font-medium">단단한 물체 안에서 릴레이 달리기!</p>
-      </button>
-
-      <button onClick={() => onSelect('convection')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-blue-400 hover:-translate-y-2 transition-transform duration-300 group">
-        <span className="text-6xl mb-4 group-hover:scale-110 transition-transform">🌀</span>
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">2. 대류 (Convection)</h3>
-        <p className="text-gray-500 font-medium">물과 공기가 빙글빙글 직접 이동하기</p>
-      </button>
-
-      <button onClick={() => onSelect('radiation')} className="flex flex-col items-center bg-white p-8 rounded-3xl shadow-lg border-b-8 border-orange-400 hover:-translate-y-2 transition-transform duration-300 group">
-        <span className="text-6xl mb-4 group-hover:scale-110 transition-transform">☀️</span>
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">3. 복사 (Radiation)</h3>
-        <p className="text-gray-500 font-medium">텅 빈 우주를 통과하는 순간이동 빔!</p>
-      </button>
-
-      <button onClick={() => onSelect('quiz')} className="flex flex-col items-center bg-amber-100 p-8 rounded-3xl shadow-lg border-b-8 border-amber-500 hover:-translate-y-2 transition-transform duration-300 group">
-        <span className="text-6xl mb-4 group-hover:scale-110 transition-transform">📝</span>
-        <h3 className="text-2xl font-bold text-amber-900 mb-2">4. 생활 속 퀴즈 풀기</h3>
-        <p className="text-amber-700 font-medium">배운 내용을 5가지 문장 퀴즈로 테스트!</p>
-      </button>
-    </div>
-  </div>
-);
-
-// --- 최상위 App 컴포넌트 ---
-export default function App() {
-  const [currentView, setCurrentView] = useState('home'); // 'home', 'theory', 'conduction', 'convection', 'radiation', 'quiz'
-
-  const goHome = () => {
-    window.scrollTo(0, 0); // 화면 전환 시 맨 위로 이동
-    setCurrentView('home');
-  };
-
-  return (
-    <div className="min-h-screen bg-sky-50 p-4 md:p-8 font-sans text-gray-800 flex flex-col items-center pb-20">
-      
-      {/* 상태 알림바 (홈 화면과 개념사전, 퀴즈에서는 숨김) */}
-      {['conduction', 'convection', 'radiation'].includes(currentView) && (
-        <div className="fixed top-4 right-4 flex items-center justify-center gap-2 text-xs md:text-sm font-medium bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow border border-gray-200 z-50">
-          <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-1 animate-pulse"></span> 붉은색: 뜨거움!</span>
-          <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span> 푸른색: 차가움!</span>
-        </div>
-      )}
-
-      {/* 헤더에 작게 떠있는 개념사전 이동 버튼 (시뮬레이션 화면에서만) */}
-      {['conduction', 'convection', 'radiation'].includes(currentView) && (
-        <div className="fixed top-4 left-4 z-50 hidden md:block">
-           <button onClick={() => setCurrentView('theory')} className="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm font-bold rounded-full shadow hover:bg-indigo-200 transition border border-indigo-300">
-             📖 설명 다시보기
-           </button>
-        </div>
-      )}
-
-      <div className="w-full max-w-6xl">
-        {currentView === 'home' && <HomePanel onSelect={setCurrentView} />}
-        {currentView === 'theory' && <TheoryPanel onBack={goHome} />}
-        {currentView === 'conduction' && <ConductionPanel onBack={goHome} />}
-        {currentView === 'convection' && <ConvectionPanel onBack={goHome} />}
-        {currentView === 'radiation' && <RadiationPanel onBack={goHome} />}
-        {currentView === 'quiz' && <QuizPanel onBack={goHome} />}
-      </div>
-    </div>
-  );
-}
+    // React 18 방식으로 렌더링
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
